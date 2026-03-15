@@ -1,0 +1,743 @@
+================================================================================
+  GROCERY STORE APP — ALGORITHM & TECHNICAL DOCUMENTATION
+  Developed by: Suraj (Cybersecurity)
+  Version: 1.0.0
+  Date: 2025
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+  1.  Project Overview
+  2.  System Architecture
+  3.  AI Algorithm 1 — Smart Search Ranking
+  4.  AI Algorithm 2 — Quantity Prediction
+  5.  AI Algorithm 3 — Frequently Bought Together
+  6.  Backend Algorithm — Checkout & Stock Deduction
+  7.  Backend Algorithm — Inventory Search & Sort
+  8.  Frontend Algorithm — Debounced Search
+  9.  Frontend Algorithm — Animated Counter (useCount)
+  10. Frontend Algorithm — Image Deduplication & Caching
+  11. Data Structures Used
+  12. Property-Based Testing (PBT)
+  13. Security Measures (Cybersecurity Perspective)
+  14. Full Tech Stack & Specifications
+  15. File Structure
+
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+The Grocery Store App is a full-stack web application for managing a grocery
+store's inventory, processing customer purchases, and generating receipts.
+
+Key capabilities:
+  - Inventory CRUD (Create, Read, Update, Delete) with search and sort
+  - Customer purchase flow with cart management and checkout
+  - Receipt generation with itemised line totals
+  - AI-powered smart search, quantity prediction, and product suggestions
+  - 12 currency support with instant switching
+  - Dark/Light/System theme
+  - Local profile system (no login required)
+  - Real product images via Unsplash API
+  - 3D card UI with Framer Motion animations
+  - Android APK support via Capacitor
+  - Property-based testing with Hypothesis
+
+
+================================================================================
+2. SYSTEM ARCHITECTURE
+================================================================================
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                     FRONTEND (Port 5173)                    │
+  │                                                             │
+  │  React 18 + TypeScript + Vite                               │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
+  │  │ HomePage │  │Inventory │  │ Purchase │  │  Receipt  │  │
+  │  └──────────┘  └──────────┘  └──────────┘  └───────────┘  │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
+  │  │Settings  │  │ Profile  │  │  About   │                  │
+  │  └──────────┘  └──────────┘  └──────────┘                  │
+  │                                                             │
+  │  State Management: Zustand (persisted to localStorage)      │
+  │  ┌─────────────┐ ┌──────────────┐ ┌──────────────────────┐ │
+  │  │inventoryStore│ │  cartStore   │ │     aiStore          │ │
+  │  └─────────────┘ └──────────────┘ └──────────────────────┘ │
+  │  ┌─────────────┐ ┌──────────────┐                          │
+  │  │settingsStore│ │ profileStore │                          │
+  │  └─────────────┘ └──────────────┘                          │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │ HTTP (Axios)
+                             │ REST API calls
+                             ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                     BACKEND (Port 8000)                     │
+  │                                                             │
+  │  Python 3.11 + FastAPI + SQLAlchemy + SQLite                │
+  │                                                             │
+  │  Endpoints:                                                 │
+  │    GET    /items           → list all items                 │
+  │    POST   /items           → create item                    │
+  │    GET    /items/{id}      → get single item                │
+  │    PUT    /items/{id}      → update item                    │
+  │    POST   /checkout        → process purchase               │
+  │                                                             │
+  │  Database: SQLite (grocery.db)                              │
+  │  Tables: items, users (auth unused)                         │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+3. AI ALGORITHM 1 — SMART SEARCH RANKING
+================================================================================
+
+FILE: frontend/src/store/aiStore.ts → rankItems()
+
+PURPOSE:
+  When a user types in the search box, instead of a simple substring filter,
+  items are scored and ranked by relevance. Items the user buys often appear
+  higher. Typos are tolerated via fuzzy matching.
+
+ALGORITHM: Weighted Scoring + Fuzzy Match
+
+  Input:  items[]  — full inventory list
+          query    — user's search string
+
+  Output: items[] sorted by descending score (irrelevant items removed)
+
+SCORING RULES:
+  ┌─────────────────────────────────────────┬────────┐
+  │ Condition                               │ Score  │
+  ├─────────────────────────────────────────┼────────┤
+  │ Exact match (name === query)            │ +100   │
+  │ Starts with query                       │ +60    │
+  │ Contains query (substring)              │ +30    │
+  │ Fuzzy match (chars in order)            │ +10    │
+  │ Each past purchase of this item         │ +5     │
+  │ Purchase history boost (max cap)        │ +40    │
+  │ Item is out of stock                    │ -50    │
+  └─────────────────────────────────────────┴────────┘
+
+FUZZY MATCH SUB-ALGORITHM:
+  Function: fuzzyMatch(haystack, needle)
+
+  Checks if all characters of `needle` appear in `haystack` in order,
+  but not necessarily consecutively.
+
+  Example:
+    fuzzyMatch("tomato", "tmt")  → true   (t..m..t found in order)
+    fuzzyMatch("tomato", "xyz")  → false
+
+  Pseudocode:
+    hi = 0
+    for each char in needle:
+      idx = haystack.indexOf(char, starting from hi)
+      if idx == -1: return false
+      hi = idx + 1
+    return true
+
+  Time Complexity: O(n * m) where n = haystack length, m = needle length
+
+PURCHASE HISTORY BOOST:
+  freq[itemId] = count of times item appears in purchase history
+  boost = min(freq[itemId] * 5, 40)
+
+  This means:
+    - Bought 1 time  → +5 boost
+    - Bought 4 times → +20 boost
+    - Bought 8+ times → +40 boost (capped)
+
+FINAL SORT:
+  items.sort((a, b) => score[b] - score[a])
+  Items with score <= 0 are filtered out when query is non-empty.
+
+EXAMPLE:
+  Query: "tom"
+  Items: tomato (bought 3x), tomato sauce (bought 0x), potato
+  Scores:
+    tomato       = 60 (starts with) + 15 (3 purchases) = 75
+    tomato sauce = 30 (contains)    + 0                = 30
+    potato       = 10 (fuzzy: t,o in order)            = 10
+  Result order: tomato → tomato sauce → potato
+
+
+================================================================================
+4. AI ALGORITHM 2 — QUANTITY PREDICTION
+================================================================================
+
+FILE: frontend/src/store/aiStore.ts → predictQty()
+
+PURPOSE:
+  When a user opens the purchase page, the quantity input for each item is
+  pre-filled with the predicted quantity based on their purchase history.
+  This saves time for repeat customers.
+
+ALGORITHM: Rolling Average
+
+  Input:  itemId — the item to predict for
+  Output: integer quantity (minimum 1)
+
+  Pseudocode:
+    records = history.filter(r => r.itemId == itemId)
+    if records is empty: return 1
+    avg = sum(records.quantity) / records.length
+    return max(1, round(avg))
+
+EXAMPLE:
+  Purchase history for "Milk":
+    Session 1: qty = 2
+    Session 2: qty = 2
+    Session 3: qty = 4
+    Session 4: qty = 2
+
+  avg = (2 + 2 + 4 + 2) / 4 = 2.5
+  round(2.5) = 3
+  predictQty("Milk") → 3
+
+  The qty input will be pre-filled with 3.
+
+DISPLAY:
+  Items with predicted qty > 1 show a "🤖 usually ×N" badge next to the
+  stock indicator so the user knows the suggestion is AI-generated.
+
+HISTORY LIMIT:
+  The history array is capped at 500 records (last 500 line items purchased)
+  to prevent localStorage from growing too large.
+  history = [...history, ...newRecords].slice(-500)
+
+
+================================================================================
+5. AI ALGORITHM 3 — FREQUENTLY BOUGHT TOGETHER
+================================================================================
+
+FILE: frontend/src/store/aiStore.ts → frequentlyWith()
+
+PURPOSE:
+  When a customer has items in their cart, the app suggests other items they
+  commonly buy in the same session. This is the same algorithm used by Amazon's
+  "Customers who bought this also bought..." feature, implemented locally.
+
+ALGORITHM: Co-occurrence Matrix (Item-Based Collaborative Filtering)
+
+DATA STRUCTURE:
+  Each purchase record stores:
+    {
+      itemId: number,          // the item purchased
+      sessionItems: number[]   // other item IDs bought in the SAME checkout
+    }
+
+  This creates an implicit co-occurrence matrix in the history array.
+
+ALGORITHM:
+  Input:  itemId   — the item already in cart
+          allItems — full inventory
+          limit    — max suggestions to return (default 3)
+
+  Output: Item[] sorted by co-occurrence frequency
+
+  Pseudocode:
+    coCount = {}
+    for each record where record.itemId == itemId:
+      for each id in record.sessionItems:
+        coCount[id] += 1
+
+    sorted = sort coCount entries by count descending
+    return top `limit` items from allItems matching sorted IDs
+           (filtered to in-stock only)
+
+EXAMPLE:
+  History shows:
+    When "Milk" was bought, "Bread" was also bought 5 times
+    When "Milk" was bought, "Butter" was also bought 3 times
+    When "Milk" was bought, "Eggs" was also bought 1 time
+
+  frequentlyWith("Milk") → [Bread, Butter, Eggs]
+
+  If Bread is out of stock, it's filtered out from suggestions.
+
+DISPLAY:
+  Shown as an amber "🤖 AI suggests — often bought together" banner above
+  the item list when the cart is non-empty. Each suggestion is a one-click
+  button that adds the item with the predicted quantity.
+
+COLD START:
+  On first use (no history), no suggestions are shown. The system learns
+  from the very first checkout and improves with each purchase.
+
+
+================================================================================
+6. BACKEND ALGORITHM — CHECKOUT & STOCK DEDUCTION
+================================================================================
+
+FILE: backend/crud.py → checkout()
+
+PURPOSE:
+  Process a customer's cart atomically — deduct stock for each item and
+  return a receipt. Uses database-level row locking to prevent race conditions
+  when multiple customers buy the same item simultaneously.
+
+ALGORITHM: Atomic Transaction with Pessimistic Locking
+
+  Input:  CheckoutRequest { customer_name, items: [{item_id, quantity}] }
+  Output: CheckoutResponse { customer_name, items, grand_total }
+
+  Pseudocode:
+    if request.items is empty: raise EmptyCartError
+
+    receipt_lines = []
+    for each checkout_item in request.items:
+      db_item = db.get(Item, checkout_item.item_id, with_for_update=True)
+      // with_for_update=True locks the row until transaction commits
+
+      if db_item is None: raise ItemNotFoundError
+      if db_item.stock < checkout_item.quantity: raise StockConflictError
+
+      db_item.stock -= checkout_item.quantity
+      receipt_lines.append(ReceiptLineItem(...))
+
+    db.commit()  // all changes committed atomically
+
+    grand_total = sum(line.line_total for line in receipt_lines)
+    return CheckoutResponse(...)
+
+KEY PROPERTIES:
+  - Atomicity: Either ALL stock deductions succeed or NONE do (rollback)
+  - Isolation: Row-level lock (with_for_update) prevents double-selling
+  - Validation: Stock check happens AFTER lock acquisition to avoid TOCTOU bug
+
+ERROR TYPES:
+  - EmptyCartError     → HTTP 400
+  - ItemNotFoundError  → HTTP 404
+  - StockConflictError → HTTP 409 (with item name, requested, available)
+
+TIME COMPLEXITY: O(n) where n = number of items in cart
+
+
+================================================================================
+7. BACKEND ALGORITHM — INVENTORY SEARCH & SORT
+================================================================================
+
+FILE: backend/crud.py → get_items()
+
+PURPOSE:
+  Return a filtered, sorted, paginated list of inventory items.
+
+ALGORITHM: SQL Query Builder
+
+  Input:  search, sort_by, order, page, page_size
+  Output: list[Item]
+
+  Pseudocode:
+    page_size = clamp(page_size, 1, 200)  // prevent abuse
+    page = max(1, page)
+
+    stmt = SELECT * FROM items
+
+    if search:
+      stmt += WHERE lower(name) CONTAINS lower(search)
+
+    column = getattr(Item, sort_by, Item.name)  // safe column lookup
+    if order == "desc":
+      stmt += ORDER BY column DESC
+    else:
+      stmt += ORDER BY column ASC
+
+    offset = (page - 1) * page_size
+    stmt += OFFSET offset LIMIT page_size
+
+    return db.execute(stmt).scalars().all()
+
+SAFETY:
+  - page_size is capped at 200 to prevent memory exhaustion
+  - sort_by uses getattr with fallback to Item.name (prevents SQL injection)
+  - Search uses SQLAlchemy's .contains() which parameterises the query
+
+
+================================================================================
+8. FRONTEND ALGORITHM — DEBOUNCED SEARCH
+================================================================================
+
+FILE: frontend/src/components/ItemSearch.tsx → useDebounce()
+
+PURPOSE:
+  Prevent the search ranking algorithm from running on every single keystroke.
+  Instead, wait until the user pauses typing for 150ms before filtering.
+
+ALGORITHM: Trailing Debounce
+
+  Input:  value (string), delay (ms, default 150)
+  Output: debounced value (updates only after delay ms of no changes)
+
+  Pseudocode:
+    state debounced = value
+
+    useEffect when value changes:
+      timer = setTimeout(() => setDebounced(value), delay)
+      return () => clearTimeout(timer)  // cancel if value changes again
+
+    return debounced
+
+EXAMPLE:
+  User types "t", "o", "m", "a", "t", "o" quickly:
+  - Each keystroke cancels the previous timer
+  - Only after 150ms of no typing does debounced = "tomato"
+  - rankItems() is called once, not 6 times
+
+BENEFIT:
+  Reduces unnecessary re-renders and computation from O(keystrokes * items)
+  to O(pauses * items).
+
+
+================================================================================
+9. FRONTEND ALGORITHM — ANIMATED COUNTER (useCount)
+================================================================================
+
+FILE: frontend/src/components/HomePage.tsx → useCount()
+
+PURPOSE:
+  Animate a number counting up from 0 to a target value over a duration.
+  Used for the stat cards on the home page (Total Items, Low Stock, Value).
+
+ALGORITHM: Linear Interpolation with setInterval
+
+  Input:  target (number), duration (ms, default 1200)
+  Output: current animated count value
+
+  Pseudocode:
+    steps = 40
+    increment = target / steps
+    current = 0
+
+    interval = setInterval every (duration / steps) ms:
+      current += increment
+      if current >= target:
+        setCount(target)
+        clearInterval()
+      else:
+        setCount(floor(current))
+
+  Each step advances by (target / 40), running 40 steps over 1200ms.
+  This gives a smooth linear count-up animation at ~30fps.
+
+EXAMPLE:
+  target = 100, duration = 1200ms
+  steps = 40, increment = 2.5, interval = 30ms
+  Frame 1:  count = 2
+  Frame 10: count = 25
+  Frame 20: count = 50
+  Frame 40: count = 100 (done)
+
+
+================================================================================
+10. FRONTEND ALGORITHM — IMAGE DEDUPLICATION & CACHING
+================================================================================
+
+FILE: frontend/src/utils/itemImages.ts
+
+PURPOSE:
+  Fetch a unique, relevant photo from Unsplash for each grocery item.
+  Ensure no two items show the same photo. Cache results in memory to
+  avoid redundant API calls.
+
+DATA STRUCTURES:
+  cache   = Map<string, string>   // "itemName__size" → photo URL
+  usedIds = Set<string>           // Unsplash photo IDs already used
+
+ALGORITHM: Unique Photo Fetch with Deduplication
+
+  Pseudocode for fetchUnsplashPhoto(name, size):
+    query = getSearchQuery(name)  // lookup specific query or fallback
+    page = floor(usedIds.size / 10) + 1  // advance page as more used
+
+    response = fetch Unsplash search API with query, 30 results per page
+
+    for each photo in results:
+      if photo.id NOT in usedIds:
+        usedIds.add(photo.id)
+        return photo.url  // first unused photo
+
+    return FALLBACK_URL  // if all 30 results already used
+
+SEARCH QUERY MAPPING:
+  A dictionary of 100+ grocery items maps item names to optimised search
+  queries for best photo results:
+    "apple"    → "red apple fruit"
+    "tomato"   → "tomato red vegetable"
+    "basmati rice" → "basmati rice grains"
+    ...
+  Partial matching is used for items not in the dictionary.
+
+CACHING:
+  loadItemImage(name, size):
+    key = name + "__" + size
+    if cache.has(key): return cache.get(key)  // instant return
+    url = await fetchUnsplashPhoto(name, size)
+    cache.set(key, url)
+    return url
+
+  getItemImageUrl(name, size):
+    return cache.get(key) ?? FALLBACK_URL  // synchronous, for render
+
+
+================================================================================
+11. DATA STRUCTURES USED
+================================================================================
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Structure          │ Type              │ Used For             │
+  ├──────────────────────────────────────────────────────────────┤
+  │ items[]            │ Array<Item>       │ Inventory list       │
+  │ cart[]             │ Array<CartItem>   │ Shopping cart        │
+  │ history[]          │ Array<Purchase>   │ AI training data     │
+  │ cache              │ Map<str, str>     │ Image URL cache      │
+  │ usedIds            │ Set<str>          │ Photo deduplication  │
+  │ coCount            │ Record<id, count> │ Co-occurrence matrix │
+  │ freq               │ Record<id, count> │ Purchase frequency   │
+  │ quantities         │ Record<id, str>   │ Cart qty inputs      │
+  │ errors             │ Record<id, str>   │ Validation errors    │
+  │ added              │ Record<id, bool>  │ Add feedback state   │
+  │ SQLite items table │ Relational table  │ Persistent storage   │
+  └──────────────────────────────────────────────────────────────┘
+
+  Item shape:
+    { id: number, name: string, price: number, stock: number }
+
+  CartItem shape:
+    { item: Item, quantity: number }
+
+  PurchaseRecord shape:
+    { itemId, itemName, quantity, sessionItems: number[], timestamp }
+
+
+================================================================================
+12. PROPERTY-BASED TESTING (PBT)
+================================================================================
+
+FILE: backend/tests/test_properties.py
+
+PURPOSE:
+  Instead of writing specific test cases, property-based testing generates
+  hundreds of random inputs and verifies that mathematical properties always
+  hold. Uses the Hypothesis library.
+
+PROPERTIES TESTED:
+
+  1. STOCK CONSERVATION
+     Property: After checkout, total stock removed == sum of quantities purchased
+     ∀ valid checkout: Σ(stock_before - stock_after) == Σ(quantities)
+
+  2. NON-NEGATIVE STOCK
+     Property: Stock never goes below 0 after any valid checkout
+     ∀ item after checkout: item.stock >= 0
+
+  3. GRAND TOTAL ACCURACY
+     Property: grand_total == Σ(unit_price × quantity) for all line items
+     ∀ receipt: receipt.grand_total == Σ(line.unit_price × line.quantity)
+
+  4. DUPLICATE NAME REJECTION
+     Property: Creating two items with the same name always raises an error
+     ∀ name: create(name) then create(name) → DuplicateNameError
+
+  5. STOCK CONFLICT DETECTION
+     Property: Requesting more than available stock always fails
+     ∀ item, qty > item.stock: checkout → StockConflictError
+
+  6. EMPTY CART REJECTION
+     Property: Checking out with an empty cart always raises EmptyCartError
+
+TEST RESULTS: 6/6 passing ✓
+
+
+================================================================================
+13. SECURITY MEASURES (Cybersecurity Perspective)
+================================================================================
+
+As a Cybersecurity student, Suraj applied several security principles to this
+project. Below is an analysis of the security controls implemented.
+
+A. INPUT VALIDATION & INJECTION PREVENTION
+   - All API inputs are validated via Pydantic v2 schemas before touching the DB
+   - SQLAlchemy ORM uses parameterised queries — SQL injection is not possible
+   - Backend sort_by column uses getattr() with a safe fallback (no raw SQL)
+   - Frontend validates quantity inputs (type, range, integer check) before send
+
+B. CORS POLICY
+   - CORS is configured via environment variable ALLOWED_ORIGINS
+   - In production: only the frontend origin is whitelisted
+   - In development: defaults to ["*"] for convenience only
+   - Prevents cross-origin requests from unauthorised domains
+
+C. RACE CONDITION PREVENTION (TOCTOU Attack)
+   - The checkout uses with_for_update=True (pessimistic row locking)
+   - This prevents Time-Of-Check-Time-Of-Use (TOCTOU) attacks where two
+     simultaneous requests could both pass the stock check and oversell
+   - Stock check happens AFTER the lock is acquired, not before
+
+D. ERROR HANDLING — INFORMATION DISCLOSURE
+   - Custom exception handlers return structured error codes (not stack traces)
+   - Unhandled exceptions return generic "An unexpected error occurred" message
+   - Stack traces are logged server-side only (not exposed to client)
+   - This prevents attackers from learning internal system details
+
+E. AUTHENTICATION (Built but not enforced in UI)
+   - JWT (JSON Web Token) auth is implemented in auth.py
+   - Passwords are hashed with bcrypt (via passlib) — never stored in plaintext
+   - Tokens are signed with a secret key and have expiry
+   - Auth routes exist (/auth/register, /auth/login) but are not required
+     in the current UI (open access design decision)
+
+F. API RATE LIMITING (Partial)
+   - page_size is capped at 200 to prevent resource exhaustion attacks
+   - No full rate limiting implemented (would use slowapi in production)
+
+G. SENSITIVE DATA
+   - Unsplash API key is stored in .env (not hardcoded in source)
+   - .env is listed in .gitignore — never committed to version control
+   - No user passwords or PII are stored in localStorage
+
+H. DEPENDENCY SECURITY
+   - Python dependencies pinned in requirements.txt
+   - Frontend uses exact versions in package.json
+   - Recommendation: run `pip audit` and `npm audit` regularly
+
+SECURITY IMPROVEMENTS FOR PRODUCTION:
+   [ ] Add rate limiting (slowapi for FastAPI)
+   [ ] Add HTTPS enforcement (handled by Render/Nginx in deployment)
+   [ ] Add Content Security Policy (CSP) headers
+   [ ] Enforce authentication on all item mutation routes
+   [ ] Add request logging and anomaly detection
+   [ ] Rotate JWT secret key periodically
+
+
+================================================================================
+14. FULL TECH STACK & SPECIFICATIONS
+================================================================================
+
+FRONTEND:
+  Framework:      React 18.3
+  Language:       TypeScript 5.x
+  Build Tool:     Vite 5.x
+  Styling:        Tailwind CSS 3.x
+  Animations:     Framer Motion 11.x
+  State:          Zustand 4.x (with persist middleware)
+  Routing:        React Router v6
+  HTTP Client:    Axios
+  Mobile:         Capacitor (Android APK)
+
+BACKEND:
+  Language:       Python 3.11
+  Framework:      FastAPI 0.110+
+  ORM:            SQLAlchemy 2.x
+  Database:       SQLite (file: grocery.db)
+  Validation:     Pydantic v2
+  Server:         Uvicorn
+  Auth:           JWT (python-jose) — routes exist but unused in UI
+
+TESTING:
+  Framework:      Pytest
+  PBT Library:    Hypothesis
+  Test Count:     6 property-based tests
+  All Passing:    Yes ✓
+
+AI LAYER:
+  Type:           Local (no external API)
+  Storage:        Zustand persist → localStorage
+  Algorithms:     Weighted scoring, fuzzy match, rolling average,
+                  co-occurrence matrix
+  History Cap:    500 records
+
+EXTERNAL APIs:
+  Images:         Unsplash Search API (read-only access key)
+  AI/ML:          None (all local)
+
+CURRENCIES SUPPORTED (12):
+  INR (₹)  USD ($)  EUR (€)  GBP (£)  JPY (¥)
+  CNY (¥)  AED (د.إ) BRL (R$) AUD (A$) CAD (C$)
+  KRW (₩)  CHF (Fr)
+
+BROWSER SUPPORT:
+  Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+
+DEPLOYMENT:
+  Backend:  Render (render.yaml configured)
+  Frontend: Static hosting (Netlify/Vercel compatible)
+  Mobile:   Android APK via Capacitor
+
+
+================================================================================
+15. FILE STRUCTURE
+================================================================================
+
+  grocery-store-app/
+  ├── backend/
+  │   ├── main.py          ← FastAPI app, routes, error handlers
+  │   ├── crud.py          ← Database operations (get, create, update, checkout)
+  │   ├── models.py        ← SQLAlchemy ORM models (Item, User)
+  │   ├── schemas.py       ← Pydantic request/response schemas
+  │   ├── database.py      ← DB engine, session, Base
+  │   ├── auth.py          ← JWT helpers (hash, verify, encode, decode)
+  │   ├── seed.py          ← Seed script for initial inventory data
+  │   ├── requirements.txt ← Python dependencies
+  │   └── tests/
+  │       ├── conftest.py          ← Pytest fixtures (test DB, client)
+  │       └── test_properties.py  ← 6 property-based tests
+  │
+  ├── frontend/
+  │   ├── src/
+  │   │   ├── App.tsx              ← Root app, router, navbar
+  │   │   ├── main.tsx             ← React entry point
+  │   │   ├── index.css            ← Global styles, 3D card CSS
+  │   │   ├── components/
+  │   │   │   ├── HomePage.tsx         ← Hero, stats, feature cards
+  │   │   │   ├── InventoryPage.tsx    ← Inventory management page
+  │   │   │   ├── InventoryTable.tsx   ← Sortable, paginated table
+  │   │   │   ├── PurchasePage.tsx     ← Shopping flow
+  │   │   │   ├── ItemSearch.tsx       ← AI-powered item search
+  │   │   │   ├── CartPanel.tsx        ← Cart with qty controls
+  │   │   │   ├── ReceiptPage.tsx      ← Post-checkout receipt
+  │   │   │   ├── ReceiptTable.tsx     ← Receipt line items
+  │   │   │   ├── SettingsPage.tsx     ← Theme, currency, store name
+  │   │   │   ├── ProfilePage.tsx      ← Local profile editor
+  │   │   │   ├── AboutPage.tsx        ← About, specs, developer info
+  │   │   │   ├── AddItemModal.tsx     ← Add inventory item modal
+  │   │   │   ├── EditItemModal.tsx    ← Edit inventory item modal
+  │   │   │   ├── CustomerNameForm.tsx ← Name entry before shopping
+  │   │   │   ├── SearchBar.tsx        ← Inventory search bar
+  │   │   │   ├── ItemImage.tsx        ← Async image with fallback
+  │   │   │   ├── NotificationBanner.tsx ← Global toast notifications
+  │   │   │   ├── LoadingOverlay.tsx   ← Full-screen loading state
+  │   │   │   └── PrintButton.tsx      ← Print receipt button
+  │   │   ├── store/
+  │   │   │   ├── inventoryStore.ts    ← Items state + fetch
+  │   │   │   ├── cartStore.ts         ← Cart state + totals
+  │   │   │   ├── settingsStore.ts     ← Theme, currency, page size
+  │   │   │   ├── profileStore.ts      ← Local profile (name, bio, avatar)
+  │   │   │   └── aiStore.ts           ← AI: history, ranking, prediction
+  │   │   ├── api/
+  │   │   │   ├── axios.ts             ← Axios instance with base URL
+  │   │   │   ├── items.ts             ← Item CRUD API calls
+  │   │   │   └── checkout.ts          ← Checkout API call
+  │   │   ├── utils/
+  │   │   │   └── itemImages.ts        ← Unsplash fetch + cache + dedup
+  │   │   └── types/
+  │   │       └── index.ts             ← Shared TypeScript types
+  │   ├── public/
+  │   │   ├── favicon.svg              ← Custom shopping cart SVG icon
+  │   │   └── _redirects               ← SPA routing for Netlify
+  │   ├── index.html                   ← HTML entry with meta tags
+  │   ├── .env                         ← VITE_UNSPLASH_ACCESS_KEY, VITE_API_URL
+  │   ├── package.json
+  │   ├── vite.config.ts
+  │   ├── tailwind.config.js
+  │   └── capacitor.config.ts          ← Android APK config
+  │
+  ├── render.yaml                      ← Render deployment config
+  └── ALGORITHMS.txt                   ← This file
+
+
+================================================================================
+  END OF DOCUMENT
+  Developed by Suraj — Cybersecurity
+  Grocery Store App v1.0.0 — 2025
+================================================================================

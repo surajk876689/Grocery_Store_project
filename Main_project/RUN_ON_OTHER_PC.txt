@@ -1,0 +1,84 @@
+How to Run the Kiro Project on Another PC
+
+1. Clone repository
+   git clone <repo-url> kiro
+   cd kiro
+
+2. Backend setup (Python)
+   cd backend
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   python seed.py    # optional to load sample data
+   python main.py    # starts backend on http://127.0.0.1:8000 (or configured port)
+
+3. Frontend setup (Node/Vite)
+   cd ..\frontend
+   npm install
+   npm run dev
+   # Open browser at URL from Vite (usually http://localhost:5173)
+
+4. Optional mobile (Capacitor)
+   npm run build
+   npx cap sync
+   npx cap open android  # for Android
+   npx cap open ios      # for iOS (Mac only)
+
+5. VS Code workflow
+   a) Open folder in VS Code: File -> Open Folder -> select project root.
+   b) Backend terminal:
+      - Terminal -> New Terminal
+      - cd backend
+      - python -m venv venv
+      - .\venv\Scripts\activate
+      - pip install -r requirements.txt
+      - python seed.py (optional)
+      - python main.py
+   c) Frontend terminal:
+      - Terminal -> New Terminal (or split pane)
+      - cd frontend
+      - npm install
+      - npm run dev
+      - open URL (usually http://localhost:5173)
+   d) Optional launch configs:
+      .vscode/launch.json for backend:
+      {
+        "version": "0.2.0",
+        "configurations": [
+          {
+            "name": "Python: Run backend",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/main.py",
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+          }
+        ]
+      }
+      .vscode/tasks.json for frontend:
+      {
+        "version": "2.0.0",
+        "tasks": [
+          {
+            "label": "npm: dev",
+            "type": "shell",
+            "command": "npm run dev",
+            "cwd": "${workspaceFolder}/frontend",
+            "problemMatcher": []
+          }
+        ]
+      }
+
+6. Verification
+   - Home page loads in browser
+   - CRUD operations work in inventory
+   - Auth and checkout flows function
+
+7. Troubleshooting
+   - Ensure Python >= 3.10, Node 18+, npm 10+
+   - Backend and frontend should run in separate terminals
+   - If CORS errors, confirm backend is running and API base URL matches frontend settings
+
+8. Notes
+   - Project root contains frontend/ and backend/ directories
+   - Use provided test files under backend/tests and frontend/tests if automated checks are needed

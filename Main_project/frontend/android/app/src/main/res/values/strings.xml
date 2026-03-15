@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Grocery Store</string>
+    <string name="title_activity_main">Grocery Store</string>
+    <string name="package_name">com.grocerystore.app</string>
+    <string name="custom_url_scheme">com.grocerystore.app</string>
+</resources>

@@ -1,0 +1,63 @@
+How to Run the Kiro Project in Visual Studio Code
+
+1. Open project folder
+   - In VS Code: File -> Open Folder -> select c:\Users\suraj\kiro
+   - Confirm folder has backend/ and frontend/ directories
+
+2. Backend setup and run (terminal 1)
+   - Terminal -> New Terminal
+   - cd backend
+   - python -m venv venv
+   - .\venv\Scripts\activate
+   - pip install -r requirements.txt
+   - python seed.py (optional sample data)
+   - python main.py
+   - Backend starts on http://127.0.0.1:8000 (or shown port)
+
+3. Frontend setup and run (terminal 2)
+   - Terminal -> New Terminal (or split terminal)
+   - cd frontend
+   - npm install
+   - npm run dev
+   - Open browser at URL shown (usually http://localhost:5173)
+
+4. Debugging in VS Code (optional)
+   - Create .vscode/launch.json for backend:
+     {
+       "version": "0.2.0",
+       "configurations": [
+         {
+           "name": "Python: Run backend",
+           "type": "python",
+           "request": "launch",
+           "program": "${workspaceFolder}/backend/main.py",
+           "cwd": "${workspaceFolder}/backend",
+           "console": "integratedTerminal"
+         }
+       ]
+     }
+   - Create .vscode/tasks.json for frontend:
+     {
+       "version": "2.0.0",
+       "tasks": [
+         {
+           "label": "npm: dev",
+           "type": "shell",
+           "command": "npm run dev",
+           "cwd": "${workspaceFolder}/frontend",
+           "problemMatcher": []
+         }
+       ]
+     }
+   - Run "Python: Run backend" from Run view (F5)
+   - Run Task -> "npm: dev"
+
+5. Verify app
+   - Open http://localhost:5173 and check inventory/auth/checkout
+   - If no response, confirm backend is running
+
+6. Troubleshooting
+   - Python >= 3.10
+   - Node >= 18, npm >= 10
+   - Run backend and frontend separately in two terminals
+   - Check API base URL in frontend source if CORS issues occur

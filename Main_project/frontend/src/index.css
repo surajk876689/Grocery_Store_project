@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 3D Card Depth ── */
+.card-3d {
+  position: relative;
+  transform: perspective(800px) rotateX(0deg) rotateY(0deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 -1px 0 rgba(0,0,0,0.08) inset,
+    0 4px 6px -1px rgba(0,0,0,0.07),
+    0 10px 24px -4px rgba(0,0,0,0.10),
+    0 20px 40px -8px rgba(0,0,0,0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-3d::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 1;
+}
+.card-3d:hover {
+  transform: perspective(800px) translateY(-4px) rotateX(1.5deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 -1px 0 rgba(0,0,0,0.1) inset,
+    0 8px 16px -2px rgba(0,0,0,0.10),
+    0 20px 40px -6px rgba(0,0,0,0.14),
+    0 32px 56px -12px rgba(0,0,0,0.10);
+}
+
+/* Dark mode card-3d */
+.dark .card-3d {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 -1px 0 rgba(0,0,0,0.3) inset,
+    0 4px 6px -1px rgba(0,0,0,0.3),
+    0 10px 24px -4px rgba(0,0,0,0.4),
+    0 20px 40px -8px rgba(0,0,0,0.3);
+}
+.dark .card-3d:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.1) inset,
+    0 -1px 0 rgba(0,0,0,0.4) inset,
+    0 8px 16px -2px rgba(0,0,0,0.4),
+    0 20px 40px -6px rgba(0,0,0,0.5),
+    0 32px 56px -12px rgba(0,0,0,0.4);
+}
+
+/* Embossed inputs */
+.input-emboss {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.08), inset 0 1px 2px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s ease;
+}
+.input-emboss:focus {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.06), 0 0 0 2px #6366f1;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #6ee7b7;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
+/* Pointer cursor on all interactive elements */
+button, [role="button"], a, label[for], select {
+  cursor: pointer;
+}
+
+/* Smooth focus ring */
+:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
+}
+
+/* Page transition base */
+html {
+  scroll-behavior: smooth;
+}

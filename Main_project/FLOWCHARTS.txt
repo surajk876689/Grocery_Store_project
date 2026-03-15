@@ -1,0 +1,815 @@
+================================================================================
+  GROCERY STORE APP — FLOWCHART DOCUMENTATION
+  Developed by: Suraj
+  Version: 1.0.0
+  Date: 2025
+================================================================================
+
+  LEGEND / SYMBOLS USED
+  ─────────────────────
+  [  ]  = Process / Action
+  < >   = Decision (Yes/No)
+  (  )  = Start / End (Terminal)
+  -->   = Flow direction
+  ═══   = Section separator
+
+
+TABLE OF CONTENTS
+─────────────────
+  1.  App Startup Flow
+  2.  Navigation Flow (All Pages)
+  3.  Purchase Flow (Customer Shopping)
+  4.  Checkout Flow (with Stock Validation)
+  5.  Inventory Management Flow
+  6.  Add Item Flow
+  7.  Edit Item Flow
+  8.  AI Smart Search Flow
+  9.  AI Quantity Prediction Flow
+  10. AI Frequently Bought Together Flow
+  11. Settings Flow (Theme & Currency)
+  12. Profile Flow
+  13. Image Loading Flow (Unsplash)
+  14. Backend Request-Response Flow
+  15. Error Handling Flow
+
+
+================================================================================
+1. APP STARTUP FLOW
+================================================================================
+
+  (START)
+     |
+     v
+  [Load React App in Browser]
+     |
+     v
+  [Read localStorage for persisted state]
+     |
+     +---> [settingsStore: theme, currency, storeName, pageSize]
+     +---> [profileStore: name, bio, avatarColor]
+     +---> [cartStore: customerName, cart items]
+     +---> [aiStore: purchase history]
+     |
+     v
+  [Apply Theme]
+     |
+     v
+  < theme == 'dark' ? >
+     |          |
+    YES         NO
+     |          |
+     v          v
+  [Add 'dark'  < theme == 'system' ? >
+  class to       |           |
+  <html>]       YES          NO
+                 |           |
+                 v           v
+           < OS prefers   [Add 'light'
+             dark? >       class]
+              |    |
+             YES   NO
+              |    |
+              v    v
+           [dark] [light]
+     |
+     v
+  [Render NavBar + Routes]
+     |
+     v
+  [Show HomePage by default]
+     |
+     v
+  [fetchItems() called → GET /items → populate inventoryStore]
+     |
+     v
+  (APP READY)
+
+
+================================================================================
+2. NAVIGATION FLOW (ALL PAGES)
+================================================================================
+
+                        ┌─────────────────────────────────┐
+                        │           NavBar                │
+                        │  🛒 StoreName                   │
+                        └──┬──┬──┬──┬──┬──┬──┬───────────┘
+                           │  │  │  │  │  │  │
+                Home ──────┘  │  │  │  │  │  │
+                Inventory ────┘  │  │  │  │  │
+                Purchase ────────┘  │  │  │  │
+                Receipt ────────────┘  │  │  │
+                Settings ──────────────┘  │  │
+                About ─────────────────────┘  │
+                Profile (avatar btn) ──────────┘
+
+  Each route renders its page component:
+
+  /           --> HomePage
+  /inventory  --> InventoryPage
+  /purchase   --> PurchasePage
+  /receipt    --> ReceiptPage
+  /settings   --> SettingsPage
+  /about      --> AboutPage
+  /profile    --> ProfilePage
+
+  Mobile: Hamburger menu (☰) toggles a dropdown with all links.
+
+
+================================================================================
+3. PURCHASE FLOW (CUSTOMER SHOPPING)
+================================================================================
+
+  (Customer visits /purchase)
+          |
+          v
+  < customerName set in store? >
+          |              |
+         YES             NO
+          |              |
+          v              v
+  [Show Shopping    [Show CustomerNameForm]
+   Page directly]         |
+          |               v
+          |        [User types name]
+          |               |
+          |               v
+          |        < Name is empty? >
+          |               |        |
+          |              YES       NO
+          |               |        |
+          |        [Show error]    [Save name to cartStore]
+          |                        |
+          |<───────────────────────┘
+          |
+          v
+  [Show Purchase Page]
+  ┌───────────────────────────────────────┐
+  │  Left Panel: ItemSearch               │
+  │  Right Panel: CartPanel + Checkout    │
+  └───────────────────────────────────────┘
+          |
+          v
+  [AI: Show "Frequently Bought Together" if cart not empty]
+          |
+          v
+  [User searches for items]
+          |
+          v
+  [AI rankItems() sorts results by relevance + history]
+          |
+          v
+  [User sets quantity (AI pre-fills predicted qty)]
+          |
+          v
+  [User clicks "+ Add"]
+          |
+          v
+  < qty valid AND qty <= stock? >
+          |              |
+         YES             NO
+          |              |
+          v              v
+  [Add to cart]    [Show error message]
+  [Flash ✓ green]
+          |
+          v
+  [CartPanel updates with new item]
+          |
+          v
+  [User clicks "Checkout"]
+          |
+          v
+  [→ See Checkout Flow (Section 4)]
+
+
+================================================================================
+4. CHECKOUT FLOW (WITH STOCK VALIDATION)
+================================================================================
+
+  [User clicks "Checkout"]
+          |
+          v
+  < Cart is empty? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Show "cart   [Set processing = true]
+  is empty"     [Disable checkout button]
+  message]              |
+                        v
+              [POST /checkout to backend]
+              {
+                customer_name: "...",
+                items: [{item_id, quantity}, ...]
+              }
+                        |
+                        v
+              ┌─── BACKEND PROCESSING ───┐
+              │                          │
+              │  < Cart empty? >         │
+              │    YES → 400 EmptyCart   │
+              │                          │
+              │  For each item:          │
+              │  [Lock DB row]           │
+              │  < Item exists? >        │
+              │    NO → 404 NotFound     │
+              │  < qty > stock? >        │
+              │    YES → 409 Conflict    │
+              │  [Deduct stock]          │
+              │  [Add to receipt]        │
+              │                          │
+              │  [db.commit()]           │
+              │  [Return receipt JSON]   │
+              └──────────────────────────┘
+                        |
+              ┌─────────┴──────────┐
+             SUCCESS             ERROR
+              |                    |
+              v                    v
+  [recordPurchase()         [Show error message]
+   → update AI history]     [Re-enable button]
+              |
+              v
+  [clearCart()]
+              |
+              v
+  [navigate('/receipt', { state: receipt })]
+              |
+              v
+  [Show ReceiptPage with itemised totals]
+
+
+================================================================================
+5. INVENTORY MANAGEMENT FLOW
+================================================================================
+
+  (User visits /inventory)
+          |
+          v
+  [fetchItems() → GET /items]
+          |
+          v
+  [Display InventoryTable with pagination]
+          |
+     ┌────┴────────────────────────────┐
+     │                                 │
+     v                                 v
+  [User types in SearchBar]     [User clicks column header]
+     |                                 |
+     v                                 v
+  [Filter items by name]        [Toggle sort asc/desc]
+  [Reset to page 1]             [Re-sort items array]
+     |                                 |
+     └────────────┬────────────────────┘
+                  |
+                  v
+          [Re-render table]
+                  |
+          ┌───────┴───────┐
+          │               │
+          v               v
+  [Click "+ Add Item"]  [Click "✏️ Edit" on row]
+          |               |
+          v               v
+  [Open AddItemModal]  [Open EditItemModal]
+          |               |
+          v               v
+  [→ Section 6]      [→ Section 7]
+
+
+================================================================================
+6. ADD ITEM FLOW
+================================================================================
+
+  [AddItemModal opens]
+          |
+          v
+  [User fills: Name, Price, Stock]
+          |
+          v
+  [User clicks "Add Item"]
+          |
+          v
+  [validate()]
+  ┌────────────────────────────────────┐
+  │  < Name empty? >  → error          │
+  │  < Price <= 0? >  → error          │
+  │  < Stock not integer or <= 0? >    │
+  │                   → error          │
+  └────────────────────────────────────┘
+          |
+  < Any errors? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Show field   [POST /items]
+   errors]           |
+                     v
+             < Name already exists? >
+                     |        |
+                    YES       NO
+                     |        |
+                     v        v
+             [409 Duplicate  [201 Created]
+              Name error]         |
+                                  v
+                         [addItem() → update store]
+                                  |
+                                  v
+                         [Close modal]
+                                  |
+                                  v
+                         [Table re-renders with new item]
+
+
+================================================================================
+7. EDIT ITEM FLOW
+================================================================================
+
+  [User clicks "✏️ Edit" on a row]
+          |
+          v
+  [EditItemModal opens]
+  [Pre-fills: name, price, stock from item]
+          |
+          v
+  [User modifies fields]
+          |
+          v
+  [User clicks "Save Changes"]
+          |
+          v
+  [validate() — same rules as Add]
+          |
+  < Any errors? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Show errors]  [PUT /items/{id}]
+                      |
+                      v
+             < Name taken by another item? >
+                      |        |
+                     YES       NO
+                      |        |
+                      v        v
+             [409 Duplicate  [200 Updated]
+              Name error]         |
+                                  v
+                         [updateItem() → update store]
+                                  |
+                                  v
+                         [Close modal]
+                                  |
+                                  v
+                         [Table row updates in place]
+
+
+================================================================================
+8. AI SMART SEARCH FLOW
+================================================================================
+
+  [User types in search box]
+          |
+          v
+  [useDebounce waits 150ms]
+          |
+          v
+  [debouncedQuery updates]
+          |
+          v
+  [rankItems(items, query) called]
+          |
+          v
+  [For each item, calculate score:]
+
+  ┌──────────────────────────────────────────────┐
+  │  query = query.toLowerCase()                 │
+  │  name  = item.name.toLowerCase()             │
+  │                                              │
+  │  score = 0                                   │
+  │                                              │
+  │  < name === query >      → score += 100      │
+  │  < name.startsWith(q) >  → score += 60       │
+  │  < name.includes(q) >    → score += 30       │
+  │  < fuzzyMatch(name, q) > → score += 10       │
+  │                                              │
+  │  boost = min(purchaseCount[item.id] * 5, 40) │
+  │  score += boost                              │
+  │                                              │
+  │  < item.stock === 0 >    → score -= 50       │
+  └──────────────────────────────────────────────┘
+          |
+          v
+  [Filter: remove items with score <= 0 (if query set)]
+          |
+          v
+  [Sort by score descending]
+          |
+          v
+  [Render ranked item list]
+          |
+          v
+  < Item has prediction > 1? >
+          |              |
+         YES             NO
+          |              |
+          v              v
+  [Show "🤖 usually ×N"  [No badge shown]
+   badge on item]
+
+
+================================================================================
+9. AI QUANTITY PREDICTION FLOW
+================================================================================
+
+  [ItemSearch component mounts / filtered list changes]
+          |
+          v
+  [For each item in filtered list:]
+          |
+          v
+  < item.id already in quantities state? >
+          |              |
+         YES             NO
+          |              |
+          v              v
+  [Skip — user      [predictQty(item.id)]
+   already set it]         |
+                           v
+                  [Filter history where itemId matches]
+                           |
+                           v
+                  < Any history records? >
+                           |        |
+                          YES       NO
+                           |        |
+                           v        v
+                  [avg = sum(qty)  [return 1]
+                   / count]
+                           |
+                           v
+                  [return max(1, round(avg))]
+                           |
+                           v
+                  < predicted > 1? >
+                           |        |
+                          YES       NO
+                           |        |
+                           v        v
+                  [Pre-fill qty   [Leave input
+                   input with N]   empty]
+
+
+================================================================================
+10. AI FREQUENTLY BOUGHT TOGETHER FLOW
+================================================================================
+
+  [Cart changes (item added/removed)]
+          |
+          v
+  < Cart is empty? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Hide suggestion  [For each item in cart:]
+   banner]                |
+                          v
+                  [frequentlyWith(item.id, allItems)]
+                          |
+                          v
+                  [Scan history for records where
+                   itemId == item.id]
+                          |
+                          v
+                  [Build coCount map:]
+                  {
+                    otherItemId: occurrenceCount,
+                    ...
+                  }
+                          |
+                          v
+                  [Sort by count descending]
+                          |
+                          v
+                  [Take top 3 item IDs]
+                          |
+                          v
+                  [Map IDs → Item objects]
+                          |
+                          v
+                  < Item in stock? >
+                          |        |
+                         YES       NO
+                          |        |
+                          v        v
+                  [Include in      [Skip]
+                   suggestions]
+                          |
+                  [Deduplicate across all cart items]
+                          |
+                          v
+                  < Any suggestions? >
+                          |        |
+                         YES       NO
+                          |        |
+                          v        v
+                  [Show amber      [Hide banner]
+                   "🤖 AI suggests"
+                   banner with
+                   one-click add]
+
+
+================================================================================
+11. SETTINGS FLOW (THEME & CURRENCY)
+================================================================================
+
+  (User visits /settings)
+          |
+          v
+  [Show Settings Page with current values]
+          |
+     ┌────┴──────────────────────────────────┐
+     │                                       │
+     v                                       v
+  [User clicks theme button]         [User changes currency]
+  (Light / Dark / System)                    |
+     |                                       v
+     v                              [setCurrencyCode(code)]
+  [setTheme(value)]                          |
+     |                              [All price displays
+     v                               re-render instantly
+  [useEffect triggers]               via useSettingsStore]
+     |
+     v
+  < theme == 'dark' >  → add 'dark' class to <html>
+  < theme == 'light' > → remove 'dark' class
+  < theme == 'system' >
+     |
+     v
+  < OS prefers dark? >
+     YES → add 'dark'
+     NO  → remove 'dark'
+     |
+     v
+  [Entire app re-renders with new theme]
+  [Setting persisted to localStorage]
+
+
+================================================================================
+12. PROFILE FLOW
+================================================================================
+
+  (User clicks avatar in NavBar)
+          |
+          v
+  [Navigate to /profile]
+          |
+          v
+  [Load profileStore: name, bio, avatarColor]
+  [Load inventoryStore: items for stats]
+          |
+          v
+  [Display:]
+  - Avatar circle with initials + selected color
+  - Name and bio
+  - Stats: Total Items, Low Stock, Store Value
+  - Edit form (name, bio)
+  - Color picker (8 gradient options)
+          |
+     ┌────┴──────────────────────────────────┐
+     │                                       │
+     v                                       v
+  [User edits name/bio]             [User clicks color swatch]
+  [Clicks "Save Profile"]                    |
+     |                              [setAvatarColor(color)]
+     v                              [Avatar updates instantly]
+  [setName() + setBio()]
+  [setSaved(true)]
+  [Show "✅ Saved!" for 2s]
+  [Persisted to localStorage]
+
+
+================================================================================
+13. IMAGE LOADING FLOW (UNSPLASH)
+================================================================================
+
+  [ItemImage component renders with item name]
+          |
+          v
+  [getItemImageUrl(name, size)]
+          |
+          v
+  < URL in memory cache? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Return cached  [Return FALLBACK_URL]
+   URL instantly]  [Show fallback image]
+          |              |
+          |              v
+          |        [loadItemImage(name, size) called async]
+          |              |
+          |              v
+          |        [getSearchQuery(name)]
+          |        → lookup in 100+ item dictionary
+          |        → or use "name food grocery" fallback
+          |              |
+          |              v
+          |        [Fetch Unsplash API]
+          |        GET /search/photos?query=...&per_page=30
+          |              |
+          |              v
+          |        < API response OK? >
+          |              |        |
+          |             YES       NO
+          |              |        |
+          |              v        v
+          |        [For each photo  [Return FALLBACK]
+          |         in results:]
+          |              |
+          |              v
+          |        < photo.id in usedIds? >
+          |              |        |
+          |             YES       NO
+          |              |        |
+          |           [Skip]      v
+          |                [usedIds.add(photo.id)]
+          |                [cache.set(key, url)]
+          |                [Return URL]
+          |                       |
+          └───────────────────────┘
+                          |
+                          v
+                  [Component re-renders
+                   with real photo]
+
+
+================================================================================
+14. BACKEND REQUEST-RESPONSE FLOW
+================================================================================
+
+  [Frontend sends HTTP request via Axios]
+          |
+          v
+  [FastAPI receives request]
+          |
+          v
+  [CORS Middleware checks origin]
+          |
+          v
+  < Origin allowed? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Continue]   [Block with 403]
+          |
+          v
+  [Route handler called]
+  e.g. GET /items, POST /checkout
+          |
+          v
+  [Pydantic validates request body]
+          |
+          v
+  < Validation passes? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Call crud      [422 Validation Error
+   function]       with field details]
+          |
+          v
+  [SQLAlchemy executes query]
+          |
+          v
+  < DB operation success? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Return         [Raise domain error]
+   response]           |
+          |            v
+          |      [Exception handler]
+          |      → DuplicateNameError → 409
+          |      → ItemNotFoundError  → 404
+          |      → StockConflictError → 409
+          |      → EmptyCartError     → 400
+          |      → Unhandled          → 500
+          |            |
+          └────────────┘
+                  |
+                  v
+  [JSON response sent to frontend]
+          |
+          v
+  [Axios receives response]
+          |
+          v
+  < Status 2xx? >
+          |        |
+         YES       NO
+          |        |
+          v        v
+  [Update store]  [Show error
+  [Re-render UI]   message to user]
+
+
+================================================================================
+15. ERROR HANDLING FLOW
+================================================================================
+
+  [Any operation fails]
+          |
+          v
+  ┌───────────────────────────────────────────────────────┐
+  │                  ERROR TYPE?                          │
+  │                                                       │
+  │  Frontend Validation Error                            │
+  │  → Show inline field error message                    │
+  │  → Do NOT send to backend                             │
+  │                                                       │
+  │  Network Error (no connection)                        │
+  │  → Axios catches error                                │
+  │  → Show "Checkout failed. Please try again."          │
+  │                                                       │
+  │  400 Bad Request (empty cart)                         │
+  │  → Show "Your cart is empty" message                  │
+  │                                                       │
+  │  404 Not Found (item deleted mid-session)             │
+  │  → Show item not found error                          │
+  │                                                       │
+  │  409 Conflict (duplicate name / stock conflict)       │
+  │  → Show specific conflict message                     │
+  │  → e.g. "Only 3 in stock, you requested 10"          │
+  │                                                       │
+  │  422 Validation Error (bad data shape)                │
+  │  → Show first validation error message                │
+  │                                                       │
+  │  500 Internal Server Error                            │
+  │  → Show generic "unexpected error" (no stack trace)   │
+  │  → Stack trace logged server-side only                │
+  └───────────────────────────────────────────────────────┘
+          |
+          v
+  [User sees friendly error message]
+  [App remains functional — no crash]
+  [User can retry the operation]
+
+
+================================================================================
+  COMPLETE SYSTEM FLOWCHART SUMMARY
+================================================================================
+
+  (User opens browser)
+          |
+          v
+  [App loads → reads localStorage]
+          |
+          v
+  [NavBar renders with all routes]
+          |
+          ├──> / ──────────> HomePage (stats + feature cards)
+          │
+          ├──> /inventory ─> InventoryPage
+          │                    ├─> Search/Sort items
+          │                    ├─> Add Item (modal → POST /items)
+          │                    └─> Edit Item (modal → PUT /items/{id})
+          │
+          ├──> /purchase ──> PurchasePage
+          │                    ├─> Enter customer name
+          │                    ├─> AI-ranked item search
+          │                    ├─> Add to cart (qty prediction)
+          │                    ├─> AI suggestions (bought together)
+          │                    └─> Checkout → POST /checkout
+          │                                     └─> /receipt
+          │
+          ├──> /receipt ───> ReceiptPage (itemised totals + print)
+          │
+          ├──> /settings ──> SettingsPage
+          │                    ├─> Theme toggle (light/dark/system)
+          │                    ├─> Currency selector (12 options)
+          │                    ├─> Store name editor
+          │                    └─> Items per page selector
+          │
+          ├──> /about ─────> AboutPage (developer info + specs)
+          │
+          └──> /profile ───> ProfilePage
+                               ├─> Edit name + bio
+                               ├─> Pick avatar color
+                               └─> View store stats
+
+
+================================================================================
+  END OF FLOWCHART DOCUMENT
+  Developed by Suraj
+  Grocery Store App v1.0.0 — 2025
+================================================================================

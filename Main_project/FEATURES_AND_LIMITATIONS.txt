@@ -1,0 +1,304 @@
+================================================================================
+  GROCERY STORE APP — FEATURES & LIMITATIONS
+  Developed by: Suraj
+  Version: 1.0.0
+  Date: 2025
+================================================================================
+
+
+================================================================================
+  SECTION 1: FEATURES
+================================================================================
+
+--------------------------------------------------------------------------------
+1.1  INVENTORY MANAGEMENT
+--------------------------------------------------------------------------------
+  [+] Add new items with name, price, quantity, and category
+  [+] Edit existing items inline via modal
+  [+] Delete items from inventory
+  [+] Real-time low-stock alerts (highlighted when qty <= threshold)
+  [+] Pagination with configurable page size (10 / 25 / 50 / 100)
+  [+] Sort by name, price, or quantity (ascending / descending)
+  [+] Search/filter items by name in inventory view
+  [+] Total inventory value displayed in header
+  [+] Item count badge per page
+
+--------------------------------------------------------------------------------
+1.2  PURCHASE FLOW
+--------------------------------------------------------------------------------
+  [+] Customer name entry before starting a purchase
+  [+] AI-powered item search with fuzzy matching and ranking
+  [+] Add items to cart with quantity selection
+  [+] Quantity pre-filled by AI prediction (based on purchase history)
+  [+] Cart panel with live subtotal per item
+  [+] Remove individual items from cart
+  [+] One-click checkout with atomic stock deduction
+  [+] "Frequently bought together" suggestions shown while shopping
+  [+] Out-of-stock items visually disabled in search results
+
+--------------------------------------------------------------------------------
+1.3  RECEIPT GENERATION
+--------------------------------------------------------------------------------
+  [+] Instant receipt displayed after successful checkout
+  [+] Itemised line totals with quantity and unit price
+  [+] Grand total with active currency symbol
+  [+] Customer name shown on receipt
+  [+] Date and time of purchase
+  [+] Print receipt via browser print dialog (navbar hidden on print)
+
+--------------------------------------------------------------------------------
+1.4  AI SMART FEATURES (all local, no external API)
+--------------------------------------------------------------------------------
+  [+] Fuzzy Search Ranking
+        - Scores items by name match, category match, and purchase frequency
+        - Partial and out-of-order word matching supported
+        - Ranking improves automatically with each purchase
+
+  [+] Quantity Prediction
+        - Predicts how many units a customer will buy
+        - Based on rolling average of past purchase quantities per item
+        - Shows "🤖 usually ×N" badge on items with enough history
+        - Pre-fills quantity input to save time
+
+  [+] Frequently Bought Together
+        - Co-occurrence matrix tracks which items are bought in the same cart
+        - Suggests up to 3 related items as an amber banner during shopping
+        - Updates in real time as items are added to cart
+        - Improves with every completed purchase
+
+  [+] All AI data stored in browser localStorage via Zustand persist
+  [+] No API calls, no server cost, no latency for AI features
+
+--------------------------------------------------------------------------------
+1.5  CURRENCY SYSTEM
+--------------------------------------------------------------------------------
+  [+] 12 supported currencies:
+        INR (₹), USD ($), EUR (€), GBP (£), JPY (¥),
+        CNY (¥), AED (د.إ), BRL (R$), AUD (A$),
+        CAD (C$), KRW (₩), CHF (Fr)
+  [+] Currency change in Settings updates all price displays instantly
+  [+] Currency symbol shown on receipts, cart, inventory, and modals
+  [+] Persisted across sessions via localStorage
+
+--------------------------------------------------------------------------------
+1.6  THEME SYSTEM
+--------------------------------------------------------------------------------
+  [+] Light mode
+  [+] Dark mode
+  [+] System preference detection (auto)
+  [+] Instant switching — no page reload required
+  [+] Persisted across sessions
+
+--------------------------------------------------------------------------------
+1.7  LOCAL PROFILE SYSTEM
+--------------------------------------------------------------------------------
+  [+] Set your name and bio (stored in browser, no login needed)
+  [+] Choose from 8 avatar gradient colours
+  [+] Avatar initials shown in navbar top-right
+  [+] Profile page shows live store stats (total items, total value)
+  [+] No account, no password, no server — fully local
+
+--------------------------------------------------------------------------------
+1.8  ITEM IMAGES
+--------------------------------------------------------------------------------
+  [+] Unsplash API integration — real photos for each grocery item
+  [+] Unique query per item name for relevant images
+  [+] In-memory cache prevents duplicate API calls in the same session
+  [+] Graceful fallback emoji shown if image fails to load
+  [+] Configurable via VITE_UNSPLASH_ACCESS_KEY in .env
+
+--------------------------------------------------------------------------------
+1.9  UI & ANIMATIONS
+--------------------------------------------------------------------------------
+  [+] Framer Motion animations throughout:
+        - Stagger entrance on lists and grids
+        - Spring-based modal open/close
+        - AnimatePresence for smooth unmounting
+        - Hover scale effects on cards and buttons
+  [+] 3D card depth effect (.card-3d CSS class):
+        - Layered box-shadows for depth
+        - Perspective transform on hover
+        - Subtle highlight overlay via ::before pseudo-element
+  [+] Forest green + amber + teal colour palette
+  [+] Fully responsive — works on mobile, tablet, and desktop
+  [+] Smooth page transitions
+
+--------------------------------------------------------------------------------
+1.10  SETTINGS PAGE
+--------------------------------------------------------------------------------
+  [+] Store name customisation
+  [+] Currency selector (12 options)
+  [+] Theme selector (Light / Dark / System)
+  [+] Page size selector for inventory pagination
+  [+] Low-stock threshold configuration
+  [+] All settings persisted via localStorage
+
+--------------------------------------------------------------------------------
+1.11  SECURITY
+--------------------------------------------------------------------------------
+  [+] Parameterised SQL queries via SQLAlchemy ORM (no SQL injection)
+  [+] Pydantic v2 input validation on all API endpoints
+  [+] CORS middleware with configurable allowed origins
+  [+] TOCTOU-safe checkout — row-level locking during stock deduction
+  [+] Safe error handling — stack traces never exposed to client
+  [+] No authentication tokens stored (auth system removed by design)
+
+--------------------------------------------------------------------------------
+1.12  MOBILE SUPPORT
+--------------------------------------------------------------------------------
+  [+] Responsive Tailwind CSS layout
+  [+] Capacitor Android APK build support
+  [+] Hamburger menu for small screens
+  [+] Touch-friendly button sizes
+
+--------------------------------------------------------------------------------
+1.13  BACKEND API
+--------------------------------------------------------------------------------
+  [+] GET    /items          — List all inventory items (paginated, sorted)
+  [+] POST   /items          — Create a new item
+  [+] PUT    /items/{id}     — Update an existing item
+  [+] GET    /items/{id}     — Get a single item by ID
+  [+] POST   /checkout       — Process a purchase (atomic stock deduction)
+  [+] FastAPI auto-generated docs at /docs (Swagger UI)
+  [+] SQLite database — zero-config, file-based
+  [+] Seed script to pre-populate 100+ grocery items
+
+--------------------------------------------------------------------------------
+1.14  TESTING
+--------------------------------------------------------------------------------
+  [+] 6 passing test suites using Pytest + Hypothesis
+  [+] Property-based testing (PBT) with Hypothesis library
+  [+] Tests cover: item creation, checkout, stock deduction,
+        price validation, pagination, and concurrent access
+  [+] Conftest with in-memory SQLite test database (isolated)
+
+
+================================================================================
+  SECTION 2: LIMITATIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1  AUTHENTICATION & MULTI-USER
+--------------------------------------------------------------------------------
+  [-] No user login or authentication system
+        → Anyone with access to the URL can use the app
+        → Not suitable for multi-staff environments without access control
+  [-] No role-based permissions (e.g., admin vs. cashier)
+  [-] Profile data is per-browser — not shared across devices or users
+
+--------------------------------------------------------------------------------
+2.2  DATABASE
+--------------------------------------------------------------------------------
+  [-] SQLite is single-file and not suitable for high-concurrency production
+        → Works well for a single store, but not for multiple simultaneous users
+  [-] No database migrations system (e.g., Alembic)
+        → Schema changes require manual intervention
+  [-] No automatic database backups
+  [-] Data is lost if the server file is deleted
+
+--------------------------------------------------------------------------------
+2.3  AI FEATURES
+--------------------------------------------------------------------------------
+  [-] AI data stored only in the browser (localStorage)
+        → Clearing browser data resets all AI learning
+        → AI history is not shared across devices or browsers
+  [-] Quantity prediction requires at least 2–3 past purchases to be useful
+        → New installs start with no history
+  [-] Fuzzy search is basic — no NLP, no synonym matching
+        → "tomato" will not match "tomatoes" unless partial match triggers
+  [-] Co-occurrence suggestions limited to items in the same session's cart
+        → Does not learn from partial or abandoned carts
+
+--------------------------------------------------------------------------------
+2.4  IMAGES
+--------------------------------------------------------------------------------
+  [-] Requires a valid Unsplash API key in .env
+        → Without the key, images will not load (fallback emoji shown)
+  [-] Unsplash free tier has a rate limit (50 requests/hour)
+        → Heavy use may hit the limit and show fallback images
+  [-] Images are cached in memory only — cache resets on page refresh
+  [-] No offline image support
+
+--------------------------------------------------------------------------------
+2.5  CURRENCY
+--------------------------------------------------------------------------------
+  [-] Currency is display-only — no real conversion rates applied
+        → Changing currency changes the symbol only, not the numeric value
+        → Prices entered in INR will show the same number in USD if switched
+  [-] No exchange rate API integration
+
+--------------------------------------------------------------------------------
+2.6  RECEIPT & PURCHASE HISTORY
+--------------------------------------------------------------------------------
+  [-] No persistent purchase history stored on the server
+        → Receipts are only visible immediately after checkout
+        → Navigating away loses the receipt (no receipt lookup)
+  [-] No export to PDF or email functionality
+  [-] No sales reports or analytics dashboard
+
+--------------------------------------------------------------------------------
+2.7  INVENTORY
+--------------------------------------------------------------------------------
+  [-] No barcode / QR code scanning support
+  [-] No bulk import (e.g., CSV upload)
+  [-] No item categories filter in the inventory view
+  [-] No expiry date tracking for perishable items
+  [-] No supplier or vendor management
+
+--------------------------------------------------------------------------------
+2.8  DEPLOYMENT
+--------------------------------------------------------------------------------
+  [-] Backend deployed on Render free tier
+        → Spins down after 15 minutes of inactivity
+        → First request after sleep takes ~30 seconds (cold start)
+  [-] No HTTPS enforcement on local development
+  [-] No environment-specific config management (dev / staging / prod)
+  [-] Android APK requires manual rebuild after frontend changes
+
+--------------------------------------------------------------------------------
+2.9  OFFLINE SUPPORT
+--------------------------------------------------------------------------------
+  [-] No service worker or PWA support
+        → App requires an active internet connection to the backend
+        → No offline mode or local-first data sync
+
+--------------------------------------------------------------------------------
+2.10  ACCESSIBILITY
+--------------------------------------------------------------------------------
+  [-] Not fully WCAG 2.1 compliant — not tested with screen readers
+  [-] Some colour contrast ratios may not meet AA standard in all themes
+  [-] No keyboard navigation for item search dropdown
+  [-] No ARIA live regions for dynamic content updates
+
+
+================================================================================
+  SECTION 3: KNOWN ISSUES
+================================================================================
+
+  [!] Cold start delay on Render free tier (~30s after inactivity)
+  [!] Unsplash images may briefly show a loading skeleton on slow connections
+  [!] AI suggestions banner may flicker when cart updates rapidly
+  [!] Print layout may vary slightly across browsers
+
+
+================================================================================
+  SECTION 4: FUTURE IMPROVEMENTS (POSSIBLE)
+================================================================================
+
+  [ ] Add user authentication and role-based access
+  [ ] Migrate to PostgreSQL for production scalability
+  [ ] Add Alembic for database migrations
+  [ ] Persist AI data to the backend database
+  [ ] Add real currency conversion via an exchange rate API
+  [ ] Add purchase history and sales analytics dashboard
+  [ ] Add barcode scanning via device camera
+  [ ] Add CSV bulk import for inventory
+  [ ] Add PWA / service worker for offline support
+  [ ] Add PDF receipt export
+  [ ] Add item expiry date tracking
+  [ ] Improve accessibility (WCAG 2.1 AA compliance)
+
+
+================================================================================
+  END OF DOCUMENT
+================================================================================
